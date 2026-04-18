@@ -1,0 +1,895 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>用 SQL 对话数据 · 不怕代码版</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tdesign-vue-next@1.8.1/dist/tdesign.min.css">
+  <style>
+    :root {
+      --bg-color: #0b0f19;
+      --card: #151b28;
+      --border: #262f40;
+      --text-1: #e2e8f0;
+      --text-2: #94a3b8;
+      --accent: #38bdf8;
+      --accent-hover: #0ea5e9;
+      --shadow: 0 14px 45px rgba(0, 0, 0, 0.4);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; font-family: "Inter", "PingFang SC", "Microsoft YaHei", sans-serif;
+      background: var(--bg-color);
+      color: var(--text-1);
+    }
+    .page { max-width: 1200px; margin: 0 auto; padding: 32px 20px 80px; }
+    .btn {
+      border: none; cursor: pointer; border-radius: 10px;
+      padding: 12px 18px; font-weight: 600; font-size: 14px;
+      transition: all .2s ease;
+    }
+    .btn-primary { background: var(--accent); color: #0f172a; box-shadow: 0 4px 14px rgba(56,189,248,0.25); }
+    .btn-primary:hover { background: var(--accent-hover); }
+    .section { margin-top: 28px; }
+    .section-title {
+      display: flex; justify-content: space-between; align-items: center; gap: 12px;
+      margin-bottom: 12px;
+    }
+    .section-title h2 { margin: 0; font-size: 20px; font-weight: 600; color: #f8fafc; }
+    .scene-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px;
+    }
+    .card {
+      background: var(--card); border: 1px solid var(--border); border-radius: 16px;
+      padding: 16px; box-shadow: var(--shadow);
+    }
+    .scene-card {
+      cursor: pointer; border: 1px solid var(--border); transition: all .2s ease;
+    }
+    .scene-card:hover { border-color: #475569; transform: translateY(-2px); }
+    .scene-card.active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent), 0 10px 26px rgba(56,189,248,0.15); }
+    .tag {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: rgba(56,189,248,0.1); color: var(--accent); border-radius: 999px;
+      padding: 6px 10px; font-size: 12px; border: 1px solid rgba(56,189,248,0.2);
+    }
+    .learning {
+      display: grid; grid-template-columns: 1.05fr 1fr; gap: 16px; align-items: start;
+    }
+    .learning > .card { min-width: 0; }
+    .table-wrap { overflow: auto; border: 1px solid var(--border); border-radius: 10px; background: #0f141f; max-height: 52vh; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--border); font-size: 13px; }
+    th { background: #131a28; color: var(--text-1); font-weight: 600; border-bottom-width: 2px; }
+    tr:last-child td { border-bottom: none; }
+    .prompt-list { display: flex; flex-direction: column; gap: 8px; margin: 10px 0 12px; }
+    .prompt-btn {
+      width: 100%; text-align: left; border: 1px dashed var(--border);
+      background: #0f141f; padding: 10px 12px; border-radius: 10px; cursor: pointer; transition: all .2s;
+      color: var(--text-1); position: relative;
+    }
+    .prompt-btn:hover { border-color: var(--accent); background: #172133; }
+    .prompt-btn.active { border-color: var(--accent); border-style: solid; background: rgba(56,189,248,0.1); }
+    .prompt-btn .level-tag {
+      position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+      font-size: 11px; padding: 2px 6px; border-radius: 4px;
+    }
+    .level-1 { background: rgba(34,197,94,0.15); color: #4ade80; }
+    .level-2 { background: rgba(251,191,36,0.15); color: #fbbf24; }
+    .level-3 { background: rgba(239,68,68,0.15); color: #f87171; }
+    .sql-box {
+      width: 100%; min-height: 120px; border-radius: 10px; border: 1px solid var(--border);
+      padding: 10px 12px; font-family: "SFMono-Regular", monospace; resize: vertical; background: #0a0d14; color: #38bdf8; outline: none;
+    }
+    .sql-box:focus { border-color: var(--accent); }
+    .toolbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 10px; }
+    .result {
+      margin-top: 14px; border: 1px solid var(--border); border-radius: 12px; padding: 12px; background: #0f141f;
+    }
+    .result-title { display: flex; align-items: center; gap: 8px; font-weight: 600; color: var(--text-1); }
+    .hint { font-size: 13px; color: var(--text-2); margin-top: 6px; }
+    .error { color: #f87171; background: rgba(248,113,113,0.1); border: 1px solid rgba(248,113,113,0.2); padding: 10px 12px; border-radius: 10px; margin-top: 10px; }
+    .pill { padding: 4px 8px; background: rgba(56,189,248,0.1); color: var(--accent); border: 1px solid rgba(56,189,248,0.2); border-radius: 8px; font-size: 12px; }
+    .mode-switch { display: flex; gap: 4px; background: #0f141f; border-radius: 10px; padding: 4px; border: 1px solid var(--border); }
+    .mode-btn { padding: 8px 16px; border: none; background: transparent; color: var(--text-2); border-radius: 8px; cursor: pointer; font-size: 14px; transition: all .2s; }
+    .mode-btn.active { background: var(--accent); color: #0f172a; font-weight: 600; }
+    .mode-btn:hover:not(.active) { color: var(--text-1); }
+    .challenge-box { background: rgba(56,189,248,0.05); border: 1px solid rgba(56,189,248,0.2); border-radius: 12px; padding: 14px; margin-bottom: 12px; }
+    .challenge-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+    .challenge-label { font-size: 12px; color: var(--accent); font-weight: 600; }
+    .challenge-level { font-size: 11px; padding: 3px 8px; border-radius: 4px; }
+    .challenge-text { font-size: 15px; color: var(--text-1); line-height: 1.5; }
+    .hint-box { font-size: 13px; color: var(--text-2); margin-top: 8px; padding: 8px 10px; background: rgba(255,255,255,0.03); border-radius: 8px; }
+    .feedback { margin-top: 12px; padding: 12px; border-radius: 10px; font-size: 14px; }
+    .feedback.success { background: rgba(34,197,94,0.1); border: 1px solid rgba(34,197,94,0.3); color: #4ade80; }
+    .feedback.error { background: rgba(248,113,113,0.1); border: 1px solid rgba(248,113,113,0.3); color: #f87171; }
+    .feedback-icon { margin-right: 8px; }
+    .knowledge-card {
+      margin-top: 14px; border: 1px solid var(--border); border-radius: 12px; padding: 16px;
+      background: linear-gradient(135deg, rgba(56,189,248,0.03) 0%, rgba(139,92,246,0.03) 100%);
+    }
+    .knowledge-title { font-weight: 600; color: var(--text-1); margin-bottom: 14px; font-size: 14px; display: flex; align-items: center; gap: 6px; }
+    .knowledge-content { display: grid; gap: 16px; }
+    .knowledge-group { display: grid; gap: 8px; }
+    .knowledge-main {
+      background: rgba(56,189,248,0.08); border: 1px solid rgba(56,189,248,0.2);
+      border-radius: 10px; padding: 12px 14px;
+    }
+    .knowledge-main-header { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+    .knowledge-main strong { color: var(--accent); font-size: 15px; font-family: "SFMono-Regular", monospace; }
+    .knowledge-main .desc { color: var(--text-2); font-size: 13px; line-height: 1.5; }
+    .knowledge-related {
+      display: flex; flex-wrap: wrap; gap: 8px; padding-left: 4px;
+    }
+    .knowledge-related-item {
+      background: rgba(255,255,255,0.03); border: 1px solid var(--border);
+      border-radius: 8px; padding: 6px 10px; font-size: 12px;
+      display: flex; align-items: center; gap: 4px;
+    }
+    .knowledge-related-item strong { color: #a5b4fc; font-family: "SFMono-Regular", monospace; }
+    .knowledge-related-item span { color: var(--text-2); }
+    .nav-actions { display: flex; gap: 8px; align-items: center; }
+    .btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--text-1); }
+    .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+    .btn-sm { padding: 8px 14px; font-size: 13px; }
+    .mobile-only { display: none; color: var(--text-2); font-size: 13px; }
+    @media (max-width: 960px) {
+      .learning { grid-template-columns: 1fr; }
+      .mobile-only { display: block; margin-top: 6px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div style="text-align: center; margin-bottom: 24px;">
+      <h1 style="margin: 0; font-size: 28px; color: var(--text-1);">用 SQL 对话数据</h1>
+      <p style="margin: 8px 0 0; color: var(--text-2); font-size: 15px;">纯交互式 SQL 练习平台 · 点击示例立即出结果</p>
+    </div>
+
+    <section class="section" style="margin-top: 0;">
+      <div class="section-title">
+        <h2>选择数据场景</h2>
+      </div>
+      <div class="scene-grid" id="scene-grid"></div>
+    </section>
+
+    <section class="section learning">
+      <div class="card">
+        <div class="section-title" style="margin-bottom:8px;">
+          <h2>数据表预览</h2>
+          <span class="pill" id="table-name">posts</span>
+        </div>
+        <div class="table-wrap" id="data-preview"></div>
+      </div>
+
+      <div class="card">
+        <div class="section-title" style="margin-bottom:8px;">
+          <div class="mode-switch">
+            <button class="mode-btn active" id="mode-learn" data-mode="learn">学习模式</button>
+            <button class="mode-btn" id="mode-practice" data-mode="practice">练习模式</button>
+          </div>
+        </div>
+        
+        <!-- 学习模式 -->
+        <div id="learn-section">
+          <div class="section-title" style="margin-bottom:8px;">
+            <h2>自然语言 → SQL</h2>
+            <span class="tag">点击示例自动填充</span>
+          </div>
+          <div class="prompt-list" id="prompt-list"></div>
+        </div>
+        
+        <!-- 练习模式 -->
+        <div id="practice-section" style="display:none;">
+          <div class="challenge-box">
+            <div class="challenge-header">
+              <div class="challenge-label">挑战题 #<span id="challenge-num">1</span></div>
+            </div>
+            <div class="challenge-text" id="challenge-text"></div>
+            <div class="hint-box" id="challenge-hint"></div>
+          </div>
+          <div class="nav-actions">
+            <button class="btn btn-ghost btn-sm" id="prev-challenge">上一题</button>
+            <button class="btn btn-ghost btn-sm" id="next-challenge">下一题</button>
+            <button class="btn btn-ghost btn-sm" id="show-answer">查看答案</button>
+          </div>
+        </div>
+        
+        <textarea class="sql-box" id="sql-input" spellcheck="false" aria-label="SQL 编辑框"></textarea>
+        <div class="toolbar">
+          <span class="hint">提示：SELECT + FROM + WHERE + ORDER BY + LIMIT，支持 LIKE %关键词%</span>
+          <button class="btn btn-primary" id="run-btn">运行查询</button>
+        </div>
+        <div id="feedback-box" class="feedback" style="display:none;"></div>
+        <div id="knowledge-box" class="knowledge-card" style="display:none;">
+          <div class="knowledge-title">💡 本题知识点</div>
+          <div id="knowledge-content"></div>
+        </div>
+        <div class="result" id="result-box">
+          <div class="result-title">查询结果</div>
+          <div id="result-content" class="hint">还没运行哦，试试点击一个示例句子。</div>
+        </div>
+        <div id="error-box" class="error" style="display:none;"></div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    let scenes = [
+      { id: 'posts', title: '公众号文章分析', desc: '阅读量、点赞率、题材表现', badge: '内容运营', color: '#151b28' },
+      { id: 'users', title: '用户活跃度', desc: '活跃天数、城市分布', badge: '留存增长', color: '#151b28' },
+      { id: 'events', title: '运营活动效果', desc: '参与人数、转化率', badge: '活动复盘', color: '#151b28' },
+    ];
+
+    // 生成模拟数据
+    const postTitles = [
+      '春招攻略', 'AI 工具合集', '选题清单', '数据分析入门', '标题写作技巧', '热点跟进手册',
+      '用户增长方法', '内容运营实战', '社群运营指南', '视频号运营', '小红书涨粉', '抖音算法解析',
+      '私域流量搭建', '裂变活动设计', '社群活跃技巧', '用户画像分析', '转化率优化', '留存策略',
+      '增长黑客技巧', '产品运营入门', '活动策划方案', '品牌营销案例', '新媒体运营', 'SEO 优化指南',
+      '社群变现路径', '直播带货技巧', '短视频剪辑', '文案写作秘籍', '创意策划方法', '数据可视化'
+    ];
+    const categories = ['求职', '工具', '选题', '方法', '写作', '热点', '增长', '运营', '社群', '视频'];
+    const cities = ['北京', '上海', '广州', '深圳', '杭州', '成都', '武汉', '南京', '西安', '重庆', '苏州', '天津'];
+    const names = ['小林', '阿文', 'Luna', 'Jason', 'Mei', '小雨', 'Alex', '小美', 'Kevin', 'Lily', '小杰', 'Emma', '小宇', 'Mike', '小雪', 'Tom', '小云', 'Jack', '小星', 'Amy', '小月', 'Bob', '小天', 'Cici', '小海', 'David', '小山', 'Eva', '小川', 'Frank'];
+    const eventNames = ['春季拉新', '618 预热', '高校社群', '视频号直播', '双 11 返场', '新年活动', '周年庆典', '会员日', '限时秒杀', '拼团活动', '转发有礼', '签到打卡', '积分兑换', '新人福利', '老客回馈', '节日促销', '品牌联动', '线下沙龙', '线上训练营', '产品发布会'];
+    const channels = ['朋友圈', '公众号', '微信群', '视频号', '抖音', '小红书', '微博', '知乎', 'B站', '私域'];
+
+    function randomInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
+    function randomFloat(min, max) { return Math.round((Math.random() * (max - min) + min) * 100) / 100; }
+    function randomPick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+    const datasets = {
+      posts: Array.from({ length: 120 }, (_, i) => ({
+        id: i + 1,
+        title: randomPick(postTitles) + (i > 30 ? ` ${String.fromCharCode(65 + (i % 26))}` : ''),
+        views: randomInt(3000, 35000),
+        likes: randomInt(100, 1500),
+        category: randomPick(categories)
+      })),
+      users: Array.from({ length: 150 }, (_, i) => ({
+        id: 1000 + i + 1,
+        name: randomPick(names) + (i > 30 ? String(i % 50) : ''),
+        city: randomPick(cities),
+        active_days: randomInt(1, 90)
+      })),
+      events: Array.from({ length: 100 }, (_, i) => ({
+        id: 200 + i + 1,
+        name: randomPick(eventNames) + (i > 20 ? ` ${String.fromCharCode(65 + (i % 26))}` : ''),
+        channel: randomPick(channels),
+        participants: randomInt(500, 15000),
+        conversion: randomFloat(0.08, 0.35)
+      }))
+    };
+
+    // 示例题目 - 按难度梯度组织
+    const exampleQueries = {
+      posts: [
+        // 基础题
+        { text: '📋 基础：查看所有文章信息', sql: 'SELECT * FROM posts;', level: 1 },
+        { text: '📋 基础：查看文章的标题和阅读量', sql: 'SELECT title, views FROM posts;', level: 1 },
+        { text: '📋 基础：按阅读量从高到低排序', sql: 'SELECT title, views, likes FROM posts ORDER BY views DESC;', level: 1 },
+        // 进阶题
+        { text: '🔥 进阶：找出阅读量超过 10000 的文章', sql: 'SELECT title, views FROM posts WHERE views > 10000;', level: 2 },
+        { text: '🔥 进阶：查询"方法"分类的文章', sql: 'SELECT title, category, views FROM posts WHERE category = "方法";', level: 2 },
+        { text: '🔥 进阶：阅读量最高的前5篇文章', sql: 'SELECT title, views FROM posts ORDER BY views DESC LIMIT 5;', level: 2 },
+        // 高级题
+        { text: '⭐ 高级：阅读量在 10000 到 20000 之间的文章', sql: 'SELECT title, views FROM posts WHERE views > 10000 AND views < 20000;', level: 3 },
+        { text: '⭐ 高级：标题包含"数据"或"运营"的文章', sql: 'SELECT title FROM posts WHERE title LIKE "%数据%" OR title LIKE "%运营%";', level: 3 },
+        { text: '⭐ 高级：点赞数大于500且阅读量大于10000', sql: 'SELECT title, views, likes FROM posts WHERE likes > 500 AND views > 10000 ORDER BY views DESC;', level: 3 },
+      ],
+      users: [
+        // 基础题
+        { text: '📋 基础：查看所有用户信息', sql: 'SELECT * FROM users;', level: 1 },
+        { text: '📋 基础：查询用户名字和城市', sql: 'SELECT name, city FROM users;', level: 1 },
+        { text: '📋 基础：按活跃天数降序排列', sql: 'SELECT name, active_days FROM users ORDER BY active_days DESC;', level: 1 },
+        // 进阶题
+        { text: '🔥 进阶：筛选北京的用户', sql: 'SELECT name, city, active_days FROM users WHERE city = "北京";', level: 2 },
+        { text: '🔥 进阶：活跃天数超过30天的用户', sql: 'SELECT name, active_days FROM users WHERE active_days > 30;', level: 2 },
+        { text: '🔥 进阶：活跃度最高的前10名用户', sql: 'SELECT name, active_days FROM users ORDER BY active_days DESC LIMIT 10;', level: 2 },
+        // 高级题
+        { text: '⭐ 高级：北京或上海的用户', sql: 'SELECT name, city FROM users WHERE city = "北京" OR city = "上海";', level: 3 },
+        { text: '⭐ 高级：活跃天数10-30天的用户', sql: 'SELECT name, active_days FROM users WHERE active_days >= 10 AND active_days <= 30;', level: 3 },
+        { text: '⭐ 高级：名字包含小写字母的用户', sql: 'SELECT name, city FROM users WHERE name LIKE "%a%" OR name LIKE "%e%" OR name LIKE "%i%";', level: 3 },
+      ],
+      events: [
+        // 基础题
+        { text: '📋 基础：查看所有活动信息', sql: 'SELECT * FROM events;', level: 1 },
+        { text: '📋 基础：查询活动名称和参与人数', sql: 'SELECT name, participants FROM events;', level: 1 },
+        { text: '📋 基础：按参与人数降序排列', sql: 'SELECT name, participants FROM events ORDER BY participants DESC;', level: 1 },
+        // 进阶题
+        { text: '🔥 进阶：转化率超过0.2的活动', sql: 'SELECT name, conversion FROM events WHERE conversion > 0.2;', level: 2 },
+        { text: '🔥 进阶：公众号渠道的活动', sql: 'SELECT name, channel, conversion FROM events WHERE channel = "公众号";', level: 2 },
+        { text: '🔥 进阶：参与人数最多的前5个活动', sql: 'SELECT name, participants FROM events ORDER BY participants DESC LIMIT 5;', level: 2 },
+        // 高级题
+        { text: '⭐ 高级：转化率0.15-0.25之间的活动', sql: 'SELECT name, conversion FROM events WHERE conversion >= 0.15 AND conversion <= 0.25;', level: 3 },
+        { text: '⭐ 高级：公众号或视频号的活动', sql: 'SELECT name, channel FROM events WHERE channel = "公众号" OR channel = "视频号";', level: 3 },
+        { text: '⭐ 高级：参与人数>5000且转化率>0.2', sql: 'SELECT name, participants, conversion FROM events WHERE participants > 5000 AND conversion > 0.2;', level: 3 },
+      ],
+    };
+
+    // 练习题 - 按难度梯度组织
+    const challenges = {
+      posts: [
+        { question: '查询所有文章的标题', answer: 'SELECT title FROM posts;', hint: '使用 SELECT 选择单列', level: 1 },
+        { question: '查询文章的标题和点赞数，按点赞数升序排列', answer: 'SELECT title, likes FROM posts ORDER BY likes ASC;', hint: 'ORDER BY ASC 升序排列', level: 1 },
+        { question: '找出点赞数超过 600 的文章', answer: 'SELECT title, likes FROM posts WHERE likes > 600;', hint: 'WHERE 配合 > 条件筛选', level: 2 },
+        { question: '查询"工具"分类的文章，按阅读量排序', answer: 'SELECT title, views FROM posts WHERE category = "工具" ORDER BY views DESC;', hint: 'WHERE + ORDER BY 组合', level: 2 },
+        { question: '找出点赞数最少的前3篇文章', answer: 'SELECT title, likes FROM posts ORDER BY likes ASC LIMIT 3;', hint: 'ASC 升序 + LIMIT 限制', level: 2 },
+        { question: '查询阅读量大于15000或点赞数大于800的文章', answer: 'SELECT title, views, likes FROM posts WHERE views > 15000 OR likes > 800;', hint: '使用 OR 连接多个条件', level: 3 },
+        { question: '查询"求职"或"工具"分类的文章', answer: 'SELECT title, category FROM posts WHERE category = "求职" OR category = "工具";', hint: 'OR 可以匹配多个值', level: 3 },
+        { question: '找出阅读量在5000到10000之间且分类为"运营"的文章', answer: 'SELECT title, views FROM posts WHERE views > 5000 AND views < 10000 AND category = "运营";', hint: '多个 AND 条件组合', level: 3 },
+      ],
+      users: [
+        { question: '查询所有用户的名字', answer: 'SELECT name FROM users;', hint: 'SELECT 单列查询', level: 1 },
+        { question: '查询用户名字和活跃天数，按活跃天数升序', answer: 'SELECT name, active_days FROM users ORDER BY active_days ASC;', hint: 'ORDER BY ASC', level: 1 },
+        { question: '找出活跃天数大于等于25天的用户', answer: 'SELECT name, active_days FROM users WHERE active_days >= 25;', hint: '>= 大于等于', level: 2 },
+        { question: '查询广州的用户，按活跃天数降序', answer: 'SELECT name, active_days FROM users WHERE city = "广州" ORDER BY active_days DESC;', hint: 'WHERE + ORDER BY', level: 2 },
+        { question: '找出活跃天数最少的5位用户', answer: 'SELECT name, active_days FROM users ORDER BY active_days ASC LIMIT 5;', hint: 'ASC + LIMIT', level: 2 },
+        { question: '查询北京、上海或深圳的用户', answer: 'SELECT name, city FROM users WHERE city = "北京" OR city = "上海" OR city = "深圳";', hint: '多个 OR 条件', level: 3 },
+        { question: '找出活跃天数小于等于10天或大于等于60天的用户', answer: 'SELECT name, active_days FROM users WHERE active_days <= 10 OR active_days >= 60;', hint: 'OR 连接两个范围', level: 3 },
+        { question: '查询杭州用户中活跃天数大于20的', answer: 'SELECT name, active_days FROM users WHERE city = "杭州" AND active_days > 20;', hint: 'AND 组合条件', level: 3 },
+      ],
+      events: [
+        { question: '查询所有活动的名称', answer: 'SELECT name FROM events;', hint: 'SELECT 单列', level: 1 },
+        { question: '查询活动名称和转化率，按转化率升序', answer: 'SELECT name, conversion FROM events ORDER BY conversion ASC;', hint: 'ORDER BY ASC', level: 1 },
+        { question: '找出参与人数超过8000的活动', answer: 'SELECT name, participants FROM events WHERE participants > 8000;', hint: 'WHERE > 条件', level: 2 },
+        { question: '查询微信群渠道的活动', answer: 'SELECT name, channel FROM events WHERE channel = "微信群";', hint: 'WHERE 等于条件', level: 2 },
+        { question: '找出转化率最高的3个活动', answer: 'SELECT name, conversion FROM events ORDER BY conversion DESC LIMIT 3;', hint: 'DESC + LIMIT', level: 2 },
+        { question: '查询参与人数大于3000且转化率大于0.2的活动', answer: 'SELECT name, participants, conversion FROM events WHERE participants > 3000 AND conversion > 0.2;', hint: 'AND 组合条件', level: 3 },
+        { question: '找出朋友圈或微信群渠道的活动', answer: 'SELECT name, channel FROM events WHERE channel = "朋友圈" OR channel = "微信群";', hint: 'OR 条件', level: 3 },
+        { question: '查询参与人数在2000到5000之间的活动', answer: 'SELECT name, participants FROM events WHERE participants >= 2000 AND participants <= 5000;', hint: '范围查询用 AND', level: 3 },
+      ],
+    };
+
+    const sceneGrid = document.getElementById('scene-grid');
+    const promptList = document.getElementById('prompt-list');
+    const dataPreview = document.getElementById('data-preview');
+    const sqlInput = document.getElementById('sql-input');
+    const resultContent = document.getElementById('result-content');
+    const resultBox = document.getElementById('result-box');
+    const errorBox = document.getElementById('error-box');
+    const tableNameBadge = document.getElementById('table-name');
+
+    let currentScene = 'posts';
+
+    function renderScenes() {
+      sceneGrid.innerHTML = '';
+      scenes.forEach(s => {
+        const card = document.createElement('div');
+        card.className = 'card scene-card' + (s.id === currentScene ? ' active' : '');
+        card.style.background = s.color;
+        card.innerHTML = `
+          <div class="tag">${s.badge}</div>
+          <h3 style="margin:8px 0 6px;">${s.title}</h3>
+          <p style="margin:0; color: var(--text-2);">${s.desc}</p>
+        `;
+        card.onclick = () => {
+          currentScene = s.id;
+          currentChallengeIndex = 0;
+          currentPromptIndex = 0;
+          renderScenes();
+          renderPrompts();
+          renderDataPreview();
+          if (currentMode === 'practice') renderChallenge();
+          clearResult();
+          hideFeedback();
+          sqlInput.value = '';
+          tableNameBadge.textContent = s.id;
+        };
+        sceneGrid.appendChild(card);
+      });
+    }
+
+    let currentPromptIndex = 0;
+
+    function renderPrompts() {
+      promptList.innerHTML = '';
+      const list = exampleQueries[currentScene];
+      if (!list || !list.length) return;
+      list.forEach((q, idx) => {
+        const btn = document.createElement('button');
+        btn.className = 'prompt-btn' + (idx === currentPromptIndex ? ' active' : '');
+        const levelClass = q.level === 1 ? 'level-1' : q.level === 2 ? 'level-2' : 'level-3';
+        const levelText = q.level === 1 ? '基础' : q.level === 2 ? '进阶' : '高级';
+        btn.innerHTML = `${q.text}<span class="level-tag ${levelClass}">${levelText}</span>`;
+        btn.onclick = () => {
+          currentPromptIndex = idx;
+          sqlInput.value = q.sql;
+          // 更新高亮状态
+          promptList.querySelectorAll('.prompt-btn').forEach((b, i) => {
+            b.classList.toggle('active', i === idx);
+          });
+          runQueryWithCheck();
+        };
+        promptList.appendChild(btn);
+      });
+      sqlInput.value = list[currentPromptIndex]?.sql || list[0].sql;
+    }
+
+    function renderDataPreview() {
+      const rows = datasets[currentScene];
+      if (!rows || !rows.length) {
+        dataPreview.innerHTML = '<div class="hint" style="padding:12px;">暂无数据</div>';
+        return;
+      }
+      const cols = Object.keys(rows[0]);
+      let html = '<table><thead><tr>' + cols.map(c => `<th>${c}</th>`).join('') + '</tr></thead><tbody>';
+      rows.forEach(r => {
+        html += '<tr>' + cols.map(c => `<td>${r[c]}</td>`).join('') + '</tr>';
+      });
+      html += '</tbody></table>';
+      dataPreview.innerHTML = html;
+    }
+
+    function clearResult() {
+      resultContent.className = 'hint';
+      resultContent.textContent = '还没运行哦，试试点击一个示例句子。';
+      errorBox.style.display = 'none';
+      hideKnowledge();
+    }
+
+    function showError(msg) {
+      errorBox.textContent = msg;
+      errorBox.style.display = 'block';
+    }
+
+    function hideError() {
+      errorBox.style.display = 'none';
+    }
+
+    function parseSQL(sql) {
+      const cleaned = sql.trim().replace(/\s+/g, ' ');
+      const regex = /^select\s+(.+?)\s+from\s+(\w+)(?:\s+where\s+(.+?))?(?:\s+order\s+by\s+([\w.]+)\s*(asc|desc)?)?(?:\s+limit\s+(\d+))?;?$/i;
+      const match = cleaned.match(regex);
+      if (!match) throw new Error('SQL 语法有误，请检查格式。');
+      const [, selectPart, table, wherePart, orderField, orderDir, limitPart] = match;
+      const selectCols = selectPart.trim() === '*' ? ['*'] : selectPart.split(',').map(c => c.trim());
+      let conditions = [];
+      if (wherePart) {
+        // 先处理 OR 条件
+        const orParts = wherePart.split(/\s+or\s+/i);
+        if (orParts.length > 1) {
+          // 有 OR 条件
+          conditions = {
+            type: 'OR',
+            parts: orParts.map(part => {
+              return parseConditions(part);
+            })
+          };
+        } else {
+          // 只有 AND 条件
+          conditions = { type: 'AND', parts: parseConditions(wherePart) };
+        }
+      }
+      return {
+        table: table.toLowerCase(),
+        selectCols,
+        conditions,
+        orderField,
+        orderDir: orderDir ? orderDir.toLowerCase() : null,
+        limit: limitPart ? Number(limitPart) : null,
+      };
+    }
+
+    function parseConditions(wherePart) {
+      return wherePart.split(/and/i).map(c => c.trim()).filter(Boolean).map(cond => {
+        const likeMatch = cond.match(/^(\w+)\s+like\s+"?%?(.+?)%?"?$/i);
+        if (likeMatch) return { field: likeMatch[1], op: 'like', value: likeMatch[2].replace(/%$/,'').replace(/^%/,'') };
+        // 支持 >=, <=, <>, =, >, <
+        const opMatch = cond.match(/^(\w+)\s*(>=|<=|<>|=|>|<)\s*"?(.*?)"?$/);
+        if (!opMatch) throw new Error('WHERE 条件格式有误，请检查运算符。');
+        return { field: opMatch[1], op: opMatch[2], value: isNaN(opMatch[3]) ? opMatch[3] : Number(opMatch[3]) };
+      });
+    }
+
+    function applyQuery(parsed) {
+      const data = datasets[parsed.table];
+      if (!data) throw new Error('没有找到这个表，换一个场景或表名试试。');
+      let result = [...data];
+
+      if (parsed.conditions && parsed.conditions.parts) {
+        if (parsed.conditions.type === 'OR') {
+          // OR 条件：满足任一即可
+          result = result.filter(row => {
+            return parsed.conditions.parts.some(condGroup => {
+              return condGroup.every(cond => checkCondition(row, cond));
+            });
+          });
+        } else {
+          // AND 条件：全部满足
+          parsed.conditions.parts.forEach(cond => {
+            result = result.filter(row => checkCondition(row, cond));
+          });
+        }
+      }
+
+      if (parsed.orderField) {
+        result.sort((a, b) => {
+          const dir = parsed.orderDir === 'asc' ? 1 : -1;
+          const av = a[parsed.orderField];
+          const bv = b[parsed.orderField];
+          if (av > bv) return dir;
+          if (av < bv) return -dir;
+          return 0;
+        });
+      }
+
+      if (parsed.limit !== null && !isNaN(parsed.limit)) result = result.slice(0, parsed.limit);
+
+      if (!(parsed.selectCols.length === 1 && parsed.selectCols[0] === '*')) {
+        result = result.map(row => {
+          const obj = {};
+          parsed.selectCols.forEach(c => obj[c] = row[c]);
+          return obj;
+        });
+      }
+      return result;
+    }
+
+    function checkCondition(row, cond) {
+      const val = row[cond.field];
+      if (val === undefined) return false;
+      if (cond.op === 'like') return String(val).toLowerCase().includes(String(cond.value).toLowerCase());
+      if (cond.op === '=') return String(val).toLowerCase() === String(cond.value).toLowerCase();
+      if (cond.op === '>') return Number(val) > Number(cond.value);
+      if (cond.op === '<') return Number(val) < Number(cond.value);
+      if (cond.op === '>=') return Number(val) >= Number(cond.value);
+      if (cond.op === '<=') return Number(val) <= Number(cond.value);
+      if (cond.op === '<>') return String(val).toLowerCase() !== String(cond.value).toLowerCase();
+      return false;
+    }
+
+    function renderResult(rows) {
+      if (!rows.length) {
+        resultContent.className = 'hint';
+        resultContent.textContent = '查询结果为空，换个条件试试？';
+        return;
+      }
+      const cols = Object.keys(rows[0]);
+      let html = '<div class="table-wrap" style="margin-top:8px;"><table><thead><tr>' +
+        cols.map(c => `<th>${c}</th>`).join('') +
+        '</tr></thead><tbody>';
+      rows.forEach(r => {
+        html += '<tr>' + cols.map(c => `<td>${r[c] !== undefined ? r[c] : ''}</td>`).join('') + '</tr>';
+      });
+      html += '</tbody></table></div>';
+      resultContent.className = '';
+      resultContent.innerHTML = html;
+    }
+
+    // 模式切换逻辑
+    let currentMode = 'learn';
+    let currentChallengeIndex = 0;
+    
+    const modeLearnBtn = document.getElementById('mode-learn');
+    const modePracticeBtn = document.getElementById('mode-practice');
+    const learnSection = document.getElementById('learn-section');
+    const practiceSection = document.getElementById('practice-section');
+    const feedbackBox = document.getElementById('feedback-box');
+    
+    function switchMode(mode) {
+      currentMode = mode;
+      modeLearnBtn.classList.toggle('active', mode === 'learn');
+      modePracticeBtn.classList.toggle('active', mode === 'practice');
+      learnSection.style.display = mode === 'learn' ? 'block' : 'none';
+      practiceSection.style.display = mode === 'practice' ? 'block' : 'none';
+      hideFeedback();
+      clearResult();
+      sqlInput.value = '';
+      if (mode === 'practice') {
+        renderChallenge();
+      }
+    }
+    
+    function renderChallenge() {
+      const sceneChallenges = challenges[currentScene];
+      if (!sceneChallenges || !sceneChallenges.length) {
+        challengeText.textContent = '当前场景暂无练习题，请切换场景。';
+        challengeHint.textContent = '';
+        return;
+      }
+      const challenge = sceneChallenges[currentChallengeIndex];
+      const level = challenge.level || 1;
+      const levelClass = level === 1 ? 'level-1' : level === 2 ? 'level-2' : 'level-3';
+      const levelText = level === 1 ? '基础' : level === 2 ? '进阶' : '高级';
+
+      // 更新题目显示
+      const challengeBox = document.querySelector('.challenge-box');
+      challengeBox.innerHTML = `
+        <div class="challenge-header">
+          <div class="challenge-label">挑战题 #${currentChallengeIndex + 1}</div>
+          <span class="challenge-level ${levelClass}">${levelText}</span>
+        </div>
+        <div class="challenge-text">${challenge.question}</div>
+        <div class="hint-box">💡 提示：${challenge.hint}</div>
+      `;
+    }
+    
+    function hideFeedback() {
+      feedbackBox.style.display = 'none';
+    }
+    
+    function showFeedback(success, message) {
+      feedbackBox.className = 'feedback ' + (success ? 'success' : 'error');
+      feedbackBox.innerHTML = `<span class="feedback-icon">${success ? '✓' : '✗'}</span>${message}`;
+      feedbackBox.style.display = 'block';
+    }
+
+    // SQL知识点库
+    const knowledgeBase = {
+      'SELECT': {
+        name: 'SELECT',
+        desc: '选择列，指定返回哪些字段',
+        related: [{ name: '*', desc: '通配符，选择所有列' }]
+      },
+      'FROM': {
+        name: 'FROM',
+        desc: '指定查询的数据表',
+        related: []
+      },
+      'WHERE': {
+        name: 'WHERE',
+        desc: '条件筛选，过滤满足条件的行',
+        related: [{ name: 'AND', desc: '同时满足多个条件' }, { name: 'OR', desc: '满足任一条件即可' }]
+      },
+      'ORDER BY': {
+        name: 'ORDER BY',
+        desc: '结果排序',
+        related: [
+          { name: 'ASC', desc: '升序（从小到大）' },
+          { name: 'DESC', desc: '降序（从大到小）' }
+        ]
+      },
+      'LIMIT': {
+        name: 'LIMIT',
+        desc: '限制返回结果的行数',
+        related: [{ name: 'OFFSET', desc: '跳过前N条，配合分页' }]
+      },
+      'LIKE': {
+        name: 'LIKE',
+        desc: '模糊匹配',
+        related: [
+          { name: '%', desc: '匹配任意多个字符' },
+          { name: '_', desc: '匹配单个字符' }
+        ]
+      },
+      'AND': {
+        name: 'AND',
+        desc: '逻辑与，所有条件都满足',
+        related: [{ name: 'OR', desc: '逻辑或，满足任一条件' }]
+      },
+      'OR': {
+        name: 'OR',
+        desc: '逻辑或，满足任一条件即可',
+        related: [{ name: 'AND', desc: '逻辑与，所有条件都满足' }]
+      },
+      'GT': {
+        name: '>',
+        desc: '大于',
+        related: [
+          { name: '>=', desc: '大于等于' },
+          { name: '<', desc: '小于' },
+          { name: '<=', desc: '小于等于' }
+        ]
+      },
+      'LT': {
+        name: '<',
+        desc: '小于',
+        related: [
+          { name: '<=', desc: '小于等于' },
+          { name: '>', desc: '大于' },
+          { name: '>=', desc: '大于等于' }
+        ]
+      },
+      'GTE': {
+        name: '>=',
+        desc: '大于等于',
+        related: [
+          { name: '>', desc: '大于' },
+          { name: '<=', desc: '小于等于' }
+        ]
+      },
+      'LTE': {
+        name: '<=',
+        desc: '小于等于',
+        related: [
+          { name: '<', desc: '小于' },
+          { name: '>=', desc: '大于等于' }
+        ]
+      },
+      'EQ': {
+        name: '=',
+        desc: '等于',
+        related: [
+          { name: '<>', desc: '不等于' },
+          { name: '!=', desc: '不等于（另一种写法）' }
+        ]
+      },
+      'NEQ': {
+        name: '<>',
+        desc: '不等于',
+        related: [{ name: '=', desc: '等于' }]
+      }
+    };
+
+    function extractKnowledge(sql) {
+      const upperSql = sql.toUpperCase();
+      const knowledge = [];
+
+      if (upperSql.includes('SELECT')) {
+        knowledge.push(knowledgeBase['SELECT']);
+      }
+      if (upperSql.includes('FROM')) {
+        knowledge.push(knowledgeBase['FROM']);
+      }
+      if (upperSql.includes('WHERE')) {
+        knowledge.push(knowledgeBase['WHERE']);
+        if (upperSql.includes(' LIKE ')) {
+          knowledge.push(knowledgeBase['LIKE']);
+        }
+        if (upperSql.includes(' AND ')) {
+          knowledge.push(knowledgeBase['AND']);
+        }
+        if (upperSql.includes(' OR ')) {
+          knowledge.push(knowledgeBase['OR']);
+        }
+        if (/>=/.test(sql)) {
+          knowledge.push(knowledgeBase['GTE']);
+        } else if (/>[^=]/.test(sql)) {
+          knowledge.push(knowledgeBase['GT']);
+        }
+        if (/<=/.test(sql)) {
+          knowledge.push(knowledgeBase['LTE']);
+        } else if (/<[^=]/.test(sql)) {
+          knowledge.push(knowledgeBase['LT']);
+        }
+        if (/<>/.test(sql)) {
+          knowledge.push(knowledgeBase['NEQ']);
+        } else if (/=[^=]/.test(sql) && !upperSql.includes('LIKE') && !/>=/.test(sql) && !/<=/.test(sql)) {
+          knowledge.push(knowledgeBase['EQ']);
+        }
+      }
+      if (upperSql.includes('ORDER BY')) {
+        knowledge.push(knowledgeBase['ORDER BY']);
+      }
+      if (upperSql.includes('LIMIT')) {
+        knowledge.push(knowledgeBase['LIMIT']);
+      }
+
+      // 去重
+      const seen = new Set();
+      return knowledge.filter(item => {
+        if (seen.has(item.name)) return false;
+        seen.add(item.name);
+        return true;
+      });
+    }
+
+    function renderKnowledge(sql) {
+      const knowledge = extractKnowledge(sql);
+      const knowledgeBox = document.getElementById('knowledge-box');
+      const knowledgeContent = document.getElementById('knowledge-content');
+
+      if (knowledge.length === 0) {
+        knowledgeBox.style.display = 'none';
+        return;
+      }
+
+      knowledgeContent.innerHTML = knowledge.map(k => {
+        let relatedHtml = '';
+        if (k.related && k.related.length > 0) {
+          relatedHtml = `
+            <div class="knowledge-related">
+              ${k.related.map(r => `
+                <div class="knowledge-related-item">
+                  <strong>${r.name}</strong>
+                  <span>${r.desc}</span>
+                </div>
+              `).join('')}
+            </div>
+          `;
+        }
+        return `
+          <div class="knowledge-group">
+            <div class="knowledge-main">
+              <div class="knowledge-main-header">
+                <strong>${k.name}</strong>
+              </div>
+              <div class="desc">${k.desc}</div>
+            </div>
+            ${relatedHtml}
+          </div>
+        `;
+      }).join('');
+      knowledgeBox.style.display = 'block';
+    }
+
+    function hideKnowledge() {
+      document.getElementById('knowledge-box').style.display = 'none';
+    }
+    
+    function checkAnswer(userSql, userResult) {
+      const sceneChallenges = challenges[currentScene];
+      if (!sceneChallenges || !sceneChallenges.length) return;
+      
+      const challenge = sceneChallenges[currentChallengeIndex];
+      try {
+        const expectedParsed = parseSQL(challenge.answer);
+        const expectedResult = applyQuery(expectedParsed);
+        
+        const userRows = JSON.stringify(userResult.map(r => Object.values(r)));
+        const expectedRows = JSON.stringify(expectedResult.map(r => Object.values(r)));
+        
+        if (userRows === expectedRows) {
+          showFeedback(true, '太棒了！答案完全正确！继续下一题吧。');
+        } else {
+          showFeedback(false, '结果不太对，再想想？可以点击"查看答案"参考。');
+        }
+      } catch (e) {
+        showFeedback(false, 'SQL 格式有误：' + e.message);
+      }
+    }
+    
+    function runQueryWithCheck() {
+      hideFeedback();
+      try {
+        const sql = sqlInput.value;
+        const parsed = parseSQL(sql);
+        const res = applyQuery(parsed);
+        renderResult(res);
+        renderKnowledge(sql);
+        if (currentMode === 'practice') {
+          checkAnswer(sql, res);
+        }
+      } catch (e) {
+        showError(e.message || '咦，这个指令暂时没学会，试试点击例句。');
+        hideKnowledge();
+        if (currentMode === 'practice') {
+          showFeedback(false, 'SQL 解析失败，请检查语法。');
+        }
+      }
+    }
+    
+    document.getElementById('run-btn').onclick = runQueryWithCheck;
+    
+    modeLearnBtn.onclick = () => switchMode('learn');
+    modePracticeBtn.onclick = () => {
+      currentChallengeIndex = 0;
+      switchMode('practice');
+    };
+    
+    document.getElementById('prev-challenge').onclick = () => {
+      const sceneChallenges = challenges[currentScene];
+      if (!sceneChallenges) return;
+      currentChallengeIndex = (currentChallengeIndex - 1 + sceneChallenges.length) % sceneChallenges.length;
+      renderChallenge();
+      hideFeedback();
+      clearResult();
+      sqlInput.value = '';
+    };
+    
+    document.getElementById('next-challenge').onclick = () => {
+      const sceneChallenges = challenges[currentScene];
+      if (!sceneChallenges) return;
+      currentChallengeIndex = (currentChallengeIndex + 1) % sceneChallenges.length;
+      renderChallenge();
+      hideFeedback();
+      clearResult();
+      sqlInput.value = '';
+    };
+    
+    document.getElementById('show-answer').onclick = () => {
+      const sceneChallenges = challenges[currentScene];
+      if (!sceneChallenges || !sceneChallenges.length) return;
+      const challenge = sceneChallenges[currentChallengeIndex];
+      sqlInput.value = challenge.answer;
+      showFeedback(false, '参考答案已填入，点击"运行查询"查看结果。');
+    };
+
+    renderScenes();
+    renderPrompts();
+    renderDataPreview();
+  </script>
+</body>
+</html>
