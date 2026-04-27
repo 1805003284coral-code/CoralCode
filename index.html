@@ -137,6 +137,40 @@
       .learning { grid-template-columns: 1fr; }
       .mobile-only { display: block; margin-top: 6px; }
     }
+
+    /* 展开动画 */
+    @keyframes fadeSlideIn {
+      from { opacity: 0; transform: translateY(-6px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    /* 知识卡片：max-height 过渡代替 display 切换 */
+    .knowledge-card {
+      overflow: hidden;
+      max-height: 0;
+      padding-top: 0 !important;
+      padding-bottom: 0 !important;
+      margin-top: 0 !important;
+      border-width: 0 !important;
+      opacity: 0;
+      transition:
+        max-height .45s cubic-bezier(.4,0,.2,1),
+        padding .35s ease,
+        margin .35s ease,
+        border-width .1s ease .34s,
+        opacity .3s ease;
+    }
+    .knowledge-card.visible {
+      max-height: 2000px;
+      padding-top: 16px !important;
+      padding-bottom: 16px !important;
+      margin-top: 14px !important;
+      border-width: 1px !important;
+      opacity: 1;
+    }
+    /* 结果内容刷新动画 */
+    .result-animate {
+      animation: fadeSlideIn .32s ease forwards;
+    }
   </style>
 </head>
 <body>
@@ -201,7 +235,7 @@
           <button class="btn btn-primary" id="run-btn">运行查询</button>
         </div>
         <div id="feedback-box" class="feedback" style="display:none;"></div>
-        <div id="knowledge-box" class="knowledge-card" style="display:none;">
+        <div id="knowledge-box" class="knowledge-card">
           <div class="knowledge-title">💡 本题知识点</div>
           <div id="knowledge-content"></div>
         </div>
@@ -648,7 +682,7 @@
         html += '<tr>' + cols.map(c => `<td>${r[c] !== undefined ? r[c] : ''}</td>`).join('') + '</tr>';
       });
       html += '</tbody></table></div>';
-      resultContent.className = '';
+      resultContent.className = 'result-animate';
       resultContent.innerHTML = html;
     }
 
@@ -914,7 +948,7 @@
       const knowledgeContent = document.getElementById('knowledge-content');
 
       if (knowledge.length === 0) {
-        knowledgeBox.style.display = 'none';
+        knowledgeBox.classList.remove('visible');
         return;
       }
 
@@ -944,11 +978,13 @@
           </div>
         `;
       }).join('');
-      knowledgeBox.style.display = 'block';
+      // 先移除再加，触发重新过渡
+      knowledgeBox.classList.remove('visible');
+      requestAnimationFrame(() => knowledgeBox.classList.add('visible'));
     }
 
     function hideKnowledge() {
-      document.getElementById('knowledge-box').style.display = 'none';
+      document.getElementById('knowledge-box').classList.remove('visible');
     }
     
     function checkAnswer(userSql, userResult) {
